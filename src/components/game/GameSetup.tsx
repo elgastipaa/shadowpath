@@ -72,9 +72,30 @@ export function GameSetup({ gameView, gameId, onSetupDone }: GameSetupProps) {
   function assign(charId: string, regionId: string) {
     const newPositions = { ...positions };
     // Remove any char previously in that region
+    // Sacar al personaje de su posición anterior (si tenía una)
     for (const [k, v] of Object.entries(newPositions)) {
-      if (v === regionId) delete newPositions[k];
+      if (k === charId) delete newPositions[k];
     }
+
+    // Límite: home acepta 4, frente acepta 1
+    const isHome = regionId === home || regionId === 'bag_end' || regionId === 'bree'
+      || regionId === 'barad_dur' || regionId === 'mount_doom';
+    const limit = isHome ? 4 : 1;
+    const charsInTarget = Object.values(newPositions).filter(r => r === regionId).length;
+
+    if (charsInTarget >= limit) {
+      // Frente lleno: desplazar el que estaba
+      if (!isHome) {
+        for (const [k, v] of Object.entries(newPositions)) {
+          if (v === regionId) { delete newPositions[k]; break; }
+        }
+      } else {
+        // Home lleno (4): no hacer nada
+        setSelected(null);
+        return;
+      }
+    }
+
     newPositions[charId] = regionId;
     setPositions(newPositions);
     setSelected(null);
