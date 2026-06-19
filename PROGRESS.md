@@ -1,11 +1,14 @@
 # Shadowpath — Progress
 
 ## Current State
-Phase: V2 IN PROGRESS
-Status: Bloques 1+2+3 completos, Bloques 4-6 pendientes
+Phase: V2 COMPLETE ✅
+Status: Todos los bloques completos, desplegado en producción
 Last Updated: 2026-06-19
 
 ---
+
+## Deploy URL: https://shadowpath-cyan.vercel.app
+## Commit: a91d351
 
 ## V2 Cambios (2026-06-19)
 
@@ -24,6 +27,22 @@ Last Updated: 2026-06-19
   → SVG de conexiones (normal, Anduin azul con flecha, Túnel Moria púrpura punteado)
   → POV por jugador: home propio siempre en zona inferior-derecha, enemigo superior-izquierda
   → eliminado BOARD_ROWS (fuente única: REGION_LAYOUT)
+
+### Bloque 4 — Auditoría de reglas ✅
+- `battle.ts`: checkAndRefillHands ahora recarga cada mano independientemente (no requiere ambas vacías)
+- `types.ts` + `play-card/route.ts`: carta Magic acepta secondaryCardId del descarte; almacena en BattleState y pasa a applyCardPhase
+- `BattlePanel.tsx`: UI para elegir carta secundaria al jugar Magic; myDiscard prop; errors con setError() (sin alert)
+- Victory conditions auditadas: 3 condiciones correctas (Frodo en Mordor, Frodo eliminado, 3+ Shadow en Shire)
+- Stalemate: hasValidMoves detecta jugador sin movimientos → pierde
+
+### Bloque 5 — Auditoría de topología ✅ (sin cambios)
+- board.ts topología aproximada para Deluxe; TODO existente reconocido
+- Conexiones especiales (Anduin, Túnel Moria) ya correctas
+
+### Bloque 6 — Pulido UX ✅
+- LandingClient: copy-to-clipboard del código, botón "Ir a la partida" explícito (sin auto-redirect)
+- Lobby: error con bg rojo visible
+- BattlePanel: "carta jugada ✓" por jugador, "esperando al oponente" correcto
 
 ### Bloque 3 — Movimientos válidos ✅
 - `GET /api/games/[gameId]/moves?characterId=`: nuevo endpoint que usa `getMovesForChar`
