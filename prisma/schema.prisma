@@ -1,0 +1,38 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Game {
+  id        String     @id @default(cuid())
+  roomCode  String     @unique @db.Char(4)
+  status    GameStatus @default(WAITING)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  lightPlayerId  String?
+  shadowPlayerId String?
+  currentTurn    Side    @default(SHADOW)
+
+  state      Json
+  lastAction String?
+
+  winner    Side?
+  winReason String?
+}
+
+enum GameStatus {
+  WAITING
+  SETUP
+  ACTIVE
+  BATTLE
+  ENDED
+}
+
+enum Side {
+  LIGHT
+  SHADOW
+}
