@@ -26,6 +26,7 @@ const CARD_DISPLAY: Record<string, { label: string; isText: boolean }> = {
 interface BattlePanelProps {
   battle: BattleState;
   myHand: CardId[];
+  myDiscard: CardId[];
   mySide: Side;
   gameId: string;
   onBattleAction: () => void;
@@ -34,12 +35,15 @@ interface BattlePanelProps {
 export function BattlePanel({
   battle,
   myHand,
+  myDiscard,
   mySide,
   gameId,
   onBattleAction,
 }: BattlePanelProps) {
-  const [selectedCard, setSelectedCard] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [selectedCard, setSelectedCard]           = useState<string | null>(null);
+  const [selectedSecondary, setSelectedSecondary] = useState<string | null>(null);
+  const [loading, setLoading]                     = useState(false);
+  const [error, setError]                         = useState<string | null>(null);
 
   const iHavePlayed =
     mySide === 'LIGHT'
@@ -51,21 +55,34 @@ export function BattlePanel({
       ? battle.shadowCardPlayed !== undefined
       : battle.lightCardPlayed !== undefined;
 
+  const isMagicSelected =
+    selectedCard === 'l_magic' || selectedCard === 's_magic';
+
   async function submitCard() {
     if (!selectedCard || loading) return;
+    if (isMagicSelected && myDiscard.length > 0 && !selectedSecondary) {
+      setError('Magic: elegí una carta del descarte como carta secundaria');
+      return;
+    }
     setLoading(true);
+    setError(null);
     try {
+      const body: { cardId: string; secondaryCardId?: string } = { cardId: selectedCard };
+      if (isMagicSelected && selectedSecondary) {
+        body.secondaryCardId = selectedSecondary;
+      }
       const res = await fetch(`/api/games/${gameId}/play-card`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cardId: selectedCard }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (!res.ok) {
-        alert(data.error ?? 'Error al jugar carta');
+        setError(data.error ?? 'Error al jugar carta');
         return;
       }
       setSelectedCard(null);
+      setSelectedSecondary(null);
       onBattleAction();
     } finally {
       setLoading(false);
@@ -84,7 +101,7 @@ export function BattlePanel({
           <p className="text-xs text-slate-400">Luz</p>
           <p className="font-bold">{battle.lightChar}</p>
           {battle.lightCardPlayed && (
-            <p className="text-xs text-green-400 mt-0.5">carta jugada</p>
+            <p className="text-xs text-green-400 mt-0.5">carta jugada ✓</p>
           )}
         </div>
         <div className="text-slate-500 self-center">vs</div>
@@ -92,7 +109,7 @@ export function BattlePanel({
           <p className="text-xs text-slate-400">Sombra</p>
           <p className="font-bold">{battle.shadowChar}</p>
           {battle.shadowCardPlayed && (
-            <p className="text-xs text-green-400 mt-0.5">carta jugada</p>
+            <p className="text-xs text-green-400 mt-0.5">carta jugada ✓</p>
           )}
         </div>
       </div>
@@ -101,19 +118,18 @@ export function BattlePanel({
       {battle.log.length > 0 && (
         <div className="bg-slate-900 rounded p-2 space-y-1 max-h-24 overflow-y-auto">
           {battle.log.map((line, i) => (
-            <p key={i} className="text-slate-400 text-xs">
-              {line}
-            </p>
+            <p key={i} className="text-slate-400 text-xs">{line}</p>
           ))}
         </div>
       )}
 
-      {/* Card selection — only shown when step is select_card and I haven't played yet */}
+      {/* Card selection — only when step is select_card and I haven't played yet */}
       {battle.step === 'select_card' && !iHavePlayed && (
         <div className="space-y-2">
+          {error && <p className="text-red-400 text-xs">{error}</p>}
+
           <p className="text-slate-400 text-xs">
-            Elegí una carta
-            {opponentHasPlayed ? ' (oponente ya jugó)' : ''}:
+            Tu mano{opponentHasPlayed ? ' (oponente ya jugó)' : ''}:
           </p>
           <div className="flex flex-wrap gap-2">
             {myHand.map(cardId => {
@@ -122,7 +138,11 @@ export function BattlePanel({
               return (
                 <button
                   key={cardId}
-                  onClick={() => setSelectedCard(selectedCard === cardId ? null : cardId)}
+                  onClick={() => {
+                    setSelectedCard(selectedCard === cardId ? null : cardId);
+                    setSelectedSecondary(null);
+                    setError(null);
+                  }}
                   className={[
                     'px-3 py-2 rounded border text-sm font-bold transition-colors',
                     card.isText ? 'border-purple-600' : 'border-slate-600',
@@ -136,9 +156,50 @@ export function BattlePanel({
               );
             })}
           </div>
+
+          {/* Magic secondary card picker */}
+          {isMagicSelected && (
+            <div className="space-y-1 p-2 bg-purple-950/40 rounded border border-purple-800">
+              <p className="text-purple-300 text-xs font-semibold">
+                Magic: elegí una carta de tu descarte ({myDiscard.length} disponibles)
+              </p>
+              {myDiscard.length === 0 ? (
+                <p className="text-slate-500 text-xs">Descarte vacío — Magic no tendrá efecto secundario</p>
+              ) : (
+                <div className="flex flex-wrap gap-1">
+                  {myDiscard.map(cardId => {
+                    const card = CARD_DISPLAY[cardId];
+                    if (!card) return null;
+                    return (
+                      <button
+                        key={cardId}
+                        onClick={() =>
+                          setSelectedSecondary(selectedSecondary === cardId ? null : cardId)
+                        }
+                        className={[
+                          'px-2 py-1 rounded border text-xs font-bold transition-colors',
+                          card.isText ? 'border-purple-500' : 'border-slate-500',
+                          selectedSecondary === cardId
+                            ? 'bg-purple-600 text-white border-purple-400'
+                            : 'bg-slate-800 text-slate-300 hover:border-slate-400',
+                        ].join(' ')}
+                      >
+                        {card.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
           <button
             onClick={submitCard}
-            disabled={!selectedCard || loading}
+            disabled={
+              !selectedCard ||
+              loading ||
+              (isMagicSelected && myDiscard.length > 0 && !selectedSecondary)
+            }
             className="w-full py-2 bg-red-700 hover:bg-red-600 disabled:opacity-40 text-white font-bold rounded"
           >
             {loading ? 'Jugando...' : 'Jugar carta'}
@@ -154,7 +215,6 @@ export function BattlePanel({
         </p>
       )}
 
-      {/* Waiting for battle to progress (char_abilities or resolve_cards step) */}
       {battle.step !== 'select_card' && battle.step !== 'done' && (
         <p className="text-amber-400 text-sm text-center">
           Procesando habilidades...

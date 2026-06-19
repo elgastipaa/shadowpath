@@ -245,19 +245,26 @@ export function discardBattleCards(
 // ── Hand refill ───────────────────────────────────────────────────────────────
 
 /**
- * When BOTH hands are empty, shuffle discards back into hands for both players.
+ * Each player refills their own hand independently when it runs empty.
+ * Called after every battle card is discarded.
  */
 export function checkAndRefillHands(state: GameState): GameState {
-  if (state.lightHand.length === 0 && state.shadowHand.length === 0) {
-    return {
-      ...state,
-      lightHand:    [...state.lightDiscard] as GameState['lightHand'],
+  let newState = state;
+  if (newState.lightHand.length === 0 && newState.lightDiscard.length > 0) {
+    newState = {
+      ...newState,
+      lightHand:    [...newState.lightDiscard] as GameState['lightHand'],
       lightDiscard: [],
-      shadowHand:   [...state.shadowDiscard] as GameState['shadowHand'],
-      shadowDiscard:[],
     };
   }
-  return state;
+  if (newState.shadowHand.length === 0 && newState.shadowDiscard.length > 0) {
+    newState = {
+      ...newState,
+      shadowHand:   [...newState.shadowDiscard] as GameState['shadowHand'],
+      shadowDiscard: [],
+    };
+  }
+  return newState;
 }
 
 // ── Saruman "no cards" resolution ────────────────────────────────────────────

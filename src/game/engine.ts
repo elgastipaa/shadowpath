@@ -623,6 +623,8 @@ export function getGameView(state: GameState, side: Side): GameView {
   const myDiscard: CardId[] = isLight ? [...state.lightDiscard] : [...state.shadowDiscard];
   const opponentDiscardCount = isLight ? state.shadowDiscard.length : state.lightDiscard.length;
 
+  const mySetupConfirmed = isLight ? state.lightSetupConfirmed : state.shadowSetupConfirmed;
+
   return {
     mySide:                   side,
     currentTurn:              state.currentTurn,
@@ -637,6 +639,7 @@ export function getGameView(state: GameState, side: Side): GameView {
     activeBattle:             state.activeBattle,
     winner:                   state.winner,
     winReason:                state.winReason,
+    mySetupConfirmed,
   };
 }
 

@@ -41,8 +41,8 @@ export async function POST(
     return Response.json({ error: `Paso de batalla incorrecto: ${state.activeBattle.step}` }, { status: 400 });
   }
 
-  const body = await request.json() as { cardId: string };
-  const { cardId } = body;
+  const body = await request.json() as { cardId: string; secondaryCardId?: string };
+  const { cardId, secondaryCardId } = body;
   if (!cardId) return Response.json({ error: 'Se requiere cardId' }, { status: 400 });
 
   // Validate card is in player's hand
@@ -61,12 +61,36 @@ export async function POST(
     return Response.json({ error: 'Ya jugaste una carta en esta batalla' }, { status: 400 });
   }
 
-  // Store pending card
+  // Validate Magic secondary card (must be in discard pile)
+  const isMagic =
+    (side === 'LIGHT' && cardId === 'l_magic') ||
+    (side === 'SHADOW' && cardId === 's_magic');
+
+  if (isMagic && secondaryCardId) {
+    if (side === 'LIGHT' && !state.lightDiscard.includes(secondaryCardId as LightCardId)) {
+      return Response.json({ error: 'La carta secundaria no está en tu descarte' }, { status: 400 });
+    }
+    if (side === 'SHADOW' && !state.shadowDiscard.includes(secondaryCardId as ShadowCardId)) {
+      return Response.json({ error: 'La carta secundaria no está en tu descarte' }, { status: 400 });
+    }
+  }
+
+  // Store pending card (and Magic secondary if provided)
   const updatedBattle: BattleState = {
     ...state.activeBattle,
     ...(side === 'LIGHT'
-      ? { lightCardPlayed: cardId as LightCardId }
-      : { shadowCardPlayed: cardId as ShadowCardId }),
+      ? {
+          lightCardPlayed: cardId as LightCardId,
+          ...(isMagic && secondaryCardId
+            ? { lightMagicSecondary: secondaryCardId as LightCardId }
+            : {}),
+        }
+      : {
+          shadowCardPlayed: cardId as ShadowCardId,
+          ...(isMagic && secondaryCardId
+            ? { shadowMagicSecondary: secondaryCardId as ShadowCardId }
+            : {}),
+        }),
   };
 
   const lightCard = updatedBattle.lightCardPlayed;
@@ -80,6 +104,10 @@ export async function POST(
         { ...state, activeBattle: updatedBattle },
         lightCard,
         shadowCard,
+        {
+          lightMagicCard:  updatedBattle.lightMagicSecondary,
+          shadowMagicCard: updatedBattle.shadowMagicSecondary,
+        },
       );
       resolvedState = result.newState;
     } catch (err) {

@@ -1,9 +1,36 @@
 # Shadowpath — Progress
 
 ## Current State
-Phase: COMPLETE ✅
-Status: MVP DONE
+Phase: V2 IN PROGRESS
+Status: Bloques 1+2+3 completos, Bloques 4-6 pendientes
 Last Updated: 2026-06-19
+
+---
+
+## V2 Cambios (2026-06-19)
+
+### Bloque 1 — Bugs críticos ✅
+- `types.ts`: GameView ahora tiene `mySetupConfirmed: boolean`
+- `engine.ts`: getGameView expone `mySetupConfirmed` (deriva de lightSetupConfirmed/shadowSetupConfirmed según el side)
+- `GameSetup.tsx`: usa `gameView.mySetupConfirmed` directamente (eliminado el cast `as unknown as`)
+- FIX: Confirmar setup ahora muestra "Esperando al oponente" en vez de dar error
+
+### Bloque 2 — Tablero diamante con POV ✅
+- `board.ts`: agregado `REGION_LAYOUT` (28 regiones con band+col) y `getRegionScreenPos(rid, mySide)`
+  → fórmula diamante 45°: LIGHT: rawX=6-band+col, rawY=8-band-col; SHADOW: espejo exacto
+  → normalizado a [5%, 95%] para posicionamiento CSS seguro
+- `GameBoard.tsx`: reescrito completo
+  → nodos con `position: absolute; left%; top%; transform: translate(-50%,-50%)`
+  → SVG de conexiones (normal, Anduin azul con flecha, Túnel Moria púrpura punteado)
+  → POV por jugador: home propio siempre en zona inferior-derecha, enemigo superior-izquierda
+  → eliminado BOARD_ROWS (fuente única: REGION_LAYOUT)
+
+### Bloque 3 — Movimientos válidos ✅
+- `GET /api/games/[gameId]/moves?characterId=`: nuevo endpoint que usa `getMovesForChar`
+- `POST /api/games/[gameId]/move`: ahora valida destino con `getMovesForChar` antes de aplicar
+- `GameBoard.tsx`: al seleccionar personaje, fetchea destinos legales y resalta solo esos
+
+---
 
 ## Todas las Fases Completadas
 

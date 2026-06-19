@@ -38,6 +38,12 @@ export interface BattleState {
   step: 'char_abilities' | 'select_card' | 'resolve_cards' | 'compare_strength' | 'done';
   lightCardPlayed?: LightCardId;
   shadowCardPlayed?: ShadowCardId;
+  /**
+   * Secondary card selected from discard when a Magic card is played.
+   * Submitted simultaneously with the Magic card.
+   */
+  lightMagicSecondary?: LightCardId;
+  shadowMagicSecondary?: ShadowCardId;
   /** Additional battles queued if multiple chars share a region */
   pendingBattles: Array<{ lightChar: LightCharId; shadowChar: ShadowCharId }>;
   log: string[];
@@ -75,6 +81,8 @@ export interface GameView {
   activeBattle: BattleState | null;
   winner: Side | null;
   winReason: string | null;
+  /** true if this player has already confirmed their setup positions */
+  mySetupConfirmed: boolean;
 }
 
 export interface CharacterData {

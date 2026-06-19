@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers';
 import { prisma } from '@/lib/prisma';
 import { getPlayerSide, parseGameState } from '@/lib/game-utils';
-import { applyMove, getGameView } from '@/game/engine';
+import { applyMove, getGameView, getMovesForChar } from '@/game/engine';
 import type { RegionId, LightCharId, ShadowCharId } from '@/game/types';
 
 export async function POST(
@@ -36,6 +36,17 @@ export async function POST(
     characterId: string;
     targetRegion: string;
   };
+
+  // Validate legality against the engine's move generator
+  const legalMoves = getMovesForChar(
+    state,
+    side,
+    characterId as LightCharId | ShadowCharId,
+  );
+  const isLegal = legalMoves.some(m => m.to === targetRegion);
+  if (!isLegal) {
+    return Response.json({ error: 'Movimiento ilegal' }, { status: 400 });
+  }
 
   let newState;
   try {

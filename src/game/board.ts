@@ -317,3 +317,86 @@ export function getAnduinMoves(from: RegionId, side: Side): RegionId[] {
 export function canUseTunnelOfMoria(from: RegionId, side: Side): boolean {
   return side === 'LIGHT' && from === TUNNEL_OF_MORIA.from;
 }
+
+// ── Layout coordinates for the visual diamond board ───────────────────────────
+//
+// Each region gets a (band, col) grid position:
+//   band: 0 = Shire side, 6 = Mordor side
+//   col:  0 = Col A (left from Light's POV), 4 = Col E (right from Light's POV)
+//         Fractional values for offset positions.
+//
+// From these, getRegionScreenPos computes a (left%, top%) position such that:
+//   LIGHT: the_shire appears near bottom-right, mordor near top-left.
+//   SHADOW: mordor appears near bottom-right, the_shire near top-left.
+
+export interface RegionLayoutData {
+  band: number;
+  col: number;
+}
+
+export const REGION_LAYOUT: Record<RegionId, RegionLayoutData> = {
+  // Band 0 – Shire cluster
+  the_shire: { band: 0, col: 2 },
+  bag_end:   { band: 0, col: 1.5 },
+  bree:      { band: 0, col: 2.5 },
+  // Band 1 – Light front row (cols A–E)
+  arthedain: { band: 1, col: 0 },
+  cardolan:  { band: 1, col: 1 },
+  enedwaith: { band: 1, col: 2 },
+  eregion:   { band: 1, col: 3 },
+  rhudaur:   { band: 1, col: 4 },
+  // Band 2 – Mountain/Rivendell row (cols A–E)
+  the_high_pass:   { band: 2, col: 0 },
+  rivendell:       { band: 2, col: 1 },
+  caradhras:       { band: 2, col: 2 },
+  misty_mountains: { band: 2, col: 3 },
+  gap_of_rohan:    { band: 2, col: 4 },
+  // Band 3 – First middle band (cols A–E)
+  mirkwood:  { band: 3, col: 0 },
+  lothloren: { band: 3, col: 1 },
+  fangorn:   { band: 3, col: 2 },
+  isengard:  { band: 3, col: 3 },
+  rohan:     { band: 3, col: 4 },
+  // Band 4 – Second middle band (Deluxe, 4 regions offset by 0.25)
+  dol_guldur:  { band: 4, col: 0.25 },
+  anduin:      { band: 4, col: 1.25 },
+  edoras:      { band: 4, col: 2.25 },
+  helm_s_deep: { band: 4, col: 3.25 },
+  // Band 5 – Shadow front row (3 regions)
+  dagorlad:      { band: 5, col: 0.5 },
+  gondor:        { band: 5, col: 2 },
+  shelob_s_lair: { band: 5, col: 3 },
+  // Band 6 – Mordor cluster
+  mordor:    { band: 6, col: 2 },
+  barad_dur: { band: 6, col: 1.5 },
+  mount_doom: { band: 6, col: 2.5 },
+};
+
+/**
+ * Compute screen position (percentage 0–100) for a region given the viewing side.
+ *
+ * Coordinate derivation:
+ *   LIGHT:  rawX = 6 - band + col,  rawY = 8 - band - col
+ *   SHADOW: rawX = 5 + band - col,  rawY = band + col - 1   (mirror image)
+ *
+ * Both formulas produce rawX ∈ [1.5, 9.5] and rawY ∈ [-0.5, 7.5] (span = 8 units).
+ * Normalized to left/top ∈ [5%, 95%] so nodes centered on the position stay on-screen.
+ */
+export function getRegionScreenPos(
+  regionId: RegionId,
+  mySide: Side,
+): { left: number; top: number } {
+  const { band, col } = REGION_LAYOUT[regionId];
+  let rawX: number, rawY: number;
+  if (mySide === 'LIGHT') {
+    rawX = 6 - band + col;
+    rawY = 8 - band - col;
+  } else {
+    rawX = 5 + band - col;
+    rawY = band + col - 1;
+  }
+  // Map [1.5, 9.5] → [5%, 95%] and [-0.5, 7.5] → [5%, 95%]
+  const left = 5 + ((rawX - 1.5) / 8) * 90;
+  const top  = 5 + ((rawY + 0.5) / 8) * 90;
+  return { left, top };
+}

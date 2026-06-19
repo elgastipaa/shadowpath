@@ -144,10 +144,8 @@ export function GameSetup({ gameView, gameId, onSetupDone }: GameSetupProps) {
     }
   }
 
-  // Check if already confirmed setup
-  const alreadyConfirmed = isLight
-    ? (gameView as unknown as { lightSetupConfirmed?: boolean }).lightSetupConfirmed
-    : (gameView as unknown as { shadowSetupConfirmed?: boolean }).shadowSetupConfirmed;
+  // Check if already confirmed setup — comes from server via GameView.mySetupConfirmed
+  const alreadyConfirmed = gameView.mySetupConfirmed;
 
   if (alreadyConfirmed) {
     return (

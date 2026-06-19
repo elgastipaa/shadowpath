@@ -1,118 +1,162 @@
 'use client';
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { BattlePanel } from './BattlePanel';
-import type { GameView, RegionId, CardId, BattleState } from '@/game/types';
-
-interface RegionDef {
-  id: string;
-  name: string;
-  isHome?: boolean;
-  mountain?: boolean;
-  limit?: number;
-}
-
-interface BoardRow {
-  label: string;
-  regions: RegionDef[];
-}
-
-const BOARD_ROWS: BoardRow[] = [
-  {
-    label: 'The Shire',
-    regions: [
-      { id: 'the_shire', name: 'The Shire', isHome: true, limit: 4 },
-      { id: 'bag_end',   name: 'Bag End' },
-      { id: 'bree',      name: 'Bree' },
-    ],
-  },
-  {
-    label: 'Zona Light',
-    regions: [
-      { id: 'arthedain', name: 'Arthedain' },
-      { id: 'cardolan',  name: 'Cardolan' },
-      { id: 'enedwaith', name: 'Enedwaith' },
-      { id: 'eregion',   name: 'Eregion' },
-      { id: 'rhudaur',   name: 'Rhudaur' },
-    ],
-  },
-  {
-    label: 'Montañas',
-    regions: [
-      { id: 'rivendell',       name: 'Rivendell' },
-      { id: 'the_high_pass',   name: 'High Pass',   mountain: true },
-      { id: 'caradhras',       name: 'Caradhras',   mountain: true },
-      { id: 'misty_mountains', name: 'Misty Mts',   mountain: true },
-      { id: 'gap_of_rohan',    name: 'Gap of Rohan', mountain: true },
-    ],
-  },
-  {
-    label: 'Centro',
-    regions: [
-      { id: 'mirkwood',  name: 'Mirkwood' },
-      { id: 'lothloren', name: 'Lothlórien' },
-      { id: 'fangorn',   name: 'Fangorn' },
-      { id: 'isengard',  name: 'Isengard' },
-      { id: 'rohan',     name: 'Rohan' },
-    ],
-  },
-  {
-    label: 'Sur',
-    regions: [
-      { id: 'anduin',     name: 'Anduin' },
-      { id: 'dol_guldur', name: 'Dol Guldur' },
-      { id: 'edoras',     name: 'Edoras' },
-      { id: 'helm_s_deep',name: "Helm's Deep" },
-    ],
-  },
-  {
-    label: 'Zona Shadow',
-    regions: [
-      { id: 'gondor',       name: 'Gondor' },
-      { id: 'dagorlad',     name: 'Dagorlad' },
-      { id: 'shelob_s_lair',name: "Shelob's Lair" },
-    ],
-  },
-  {
-    label: 'Mordor',
-    regions: [
-      { id: 'mordor',    name: 'Mordor',    isHome: true, limit: 4 },
-      { id: 'barad_dur', name: 'Barad-dûr' },
-      { id: 'mount_doom',name: 'Mount Doom' },
-    ],
-  },
-];
-
-const CHAR_SHORT: Record<string, string> = {
-  frodo:        'Fr', sam:          'Sa', pippin:       'Pi', merry:        'Me',
-  gandalf:      'Ga', aragorn:      'Ar', legolas:      'Le', gimli:        'Gi', boromir: 'Bo',
-  balrog:       'Ba', shelob:       'Sh', witch_king:   'Wk', flying_nazgul:'Nz',
-  black_rider:  'Br', saruman:      'Sr', orcs:         'Or', warg:         'Wg', cave_troll: 'Ct',
-};
-
-interface ExtendedGameView extends GameView {
-  gameId: string;
-  roomCode?: string;
-  dbStatus?: string;
-  lastAction?: string;
-}
+import {
+  REGIONS,
+  CONNECTIONS,
+  ANDUIN_CONNECTIONS,
+  TUNNEL_OF_MORIA,
+  getRegionScreenPos,
+} from '@/game/board';
+import type { RegionId, GameView } from '@/game/types';
 
 interface GameBoardProps {
-  gameView: ExtendedGameView;
+  gameView: GameView & { lastAction?: string };
   gameId: string;
   onAction: () => void;
 }
 
+// ── Display labels ────────────────────────────────────────────────────────────
+
+const REGION_ABBR: Record<RegionId, string> = {
+  the_shire: 'Shr', bag_end: 'BgE', bree: 'Bre',
+  arthedain: 'Art', cardolan: 'Cdl', enedwaith: 'Ene', eregion: 'Ere', rhudaur: 'Rhu',
+  the_high_pass: 'HiP', rivendell: 'Riv', caradhras: 'Cdr',
+  misty_mountains: 'MiM', gap_of_rohan: 'GoR',
+  mirkwood: 'Mir', lothloren: 'Lot', fangorn: 'Fan', isengard: 'Ise', rohan: 'Roh',
+  anduin: 'And', dol_guldur: 'DoG', edoras: 'Edo', helm_s_deep: 'HsD',
+  gondor: 'Gon', dagorlad: 'Dag', shelob_s_lair: 'Shb',
+  mordor: 'Mor', barad_dur: 'BrD', mount_doom: 'MtD',
+};
+
+const CHAR_SHORT: Record<string, string> = {
+  frodo: 'Fr', sam: 'Sa', pippin: 'Pi', merry: 'Me',
+  gandalf: 'Ga', aragorn: 'Ar', legolas: 'Le', gimli: 'Gi', boromir: 'Bo',
+  balrog: 'Bl', shelob: 'Sh', witch_king: 'WK', flying_nazgul: 'FN', black_rider: 'BR',
+  saruman: 'Sr', orcs: 'Or', warg: 'Wa', cave_troll: 'CT',
+};
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+type CharDisplay = { id: string; isMine: boolean; isHidden: boolean };
+
+/** Deduplicated list of bidirectional connection pairs (computed once). */
+const CONNECTION_LINES: Array<[RegionId, RegionId]> = (() => {
+  const seen = new Set<string>();
+  const lines: Array<[RegionId, RegionId]> = [];
+  for (const from of Object.keys(CONNECTIONS) as RegionId[]) {
+    for (const to of CONNECTIONS[from]) {
+      const key = from < to ? `${from}|${to}` : `${to}|${from}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        lines.push([from, to]);
+      }
+    }
+  }
+  return lines;
+})();
+
+function regionClasses(
+  rid: RegionId,
+  isValidMove: boolean,
+  hasSelectedHere: boolean,
+  isBattle: boolean,
+): string {
+  const reg = REGIONS[rid];
+  const base =
+    'absolute flex flex-col items-center justify-center select-none cursor-pointer ' +
+    'rounded border transition-all duration-150 overflow-hidden';
+
+  const size =
+    reg.type === 'home_area' ? 'w-9 h-9 text-[7px]' : 'w-11 h-11 text-[8px]';
+
+  let bg = 'bg-slate-700 border-slate-600';
+  if (reg.type === 'mountain')            bg = 'bg-slate-800 border-slate-500';
+  if (reg.type === 'home' && reg.side === 'LIGHT')      bg = 'bg-amber-950 border-amber-700';
+  if (reg.type === 'home_area' && reg.side === 'LIGHT') bg = 'bg-amber-950/60 border-amber-800';
+  if (reg.type === 'home' && reg.side === 'SHADOW')     bg = 'bg-red-950 border-red-800';
+  if (reg.type === 'home_area' && reg.side === 'SHADOW')bg = 'bg-red-950/60 border-red-900';
+
+  let ring = '';
+  if (isBattle)       ring = 'ring-2 ring-red-500 animate-pulse';
+  else if (isValidMove)    ring = 'ring-2 ring-green-400';
+  else if (hasSelectedHere) ring = 'ring-1 ring-amber-400';
+
+  return [base, size, bg, ring].filter(Boolean).join(' ');
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
+
 export function GameBoard({ gameView, gameId, onAction }: GameBoardProps) {
   const [selectedChar, setSelectedChar] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [validMoves, setValidMoves]     = useState<Set<string>>(new Set());
+  const [loading, setLoading]           = useState(false);
+  const [error, setError]               = useState<string | null>(null);
 
-  const isMyTurn = gameView.isMyTurn;
-  const isLight = gameView.mySide === 'LIGHT';
-  const inBattle = gameView.status === 'BATTLE' && gameView.activeBattle;
+  const {
+    mySide,
+    myPositions,
+    opponentRevealedPositions,
+    opponentHiddenCounts,
+    isMyTurn,
+    status,
+    activeBattle,
+    myHand,
+    myDiscard,
+  } = gameView;
+  const lastAction = (gameView as GameView & { lastAction?: string }).lastAction;
+
+  const canAct = isMyTurn && status === 'ACTIVE' && !activeBattle && !loading;
+
+  // ── Character helpers ──────────────────────────────────────────────────────
+
+  function getCharsInRegion(rid: RegionId): CharDisplay[] {
+    const result: CharDisplay[] = [];
+    for (const [id, pos] of Object.entries(myPositions)) {
+      if (pos === rid) result.push({ id, isMine: true, isHidden: false });
+    }
+    for (const [id, pos] of Object.entries(opponentRevealedPositions)) {
+      if (pos === rid) result.push({ id, isMine: false, isHidden: false });
+    }
+    const hidden = opponentHiddenCounts[rid] ?? 0;
+    for (let i = 0; i < hidden; i++) {
+      result.push({ id: `?-${rid}-${i}`, isMine: false, isHidden: true });
+    }
+    return result;
+  }
+
+  // ── Select a character and fetch its valid moves ───────────────────────────
+
+  const selectChar = useCallback(
+    async (charId: string) => {
+      if (charId === selectedChar) {
+        setSelectedChar(null);
+        setValidMoves(new Set());
+        return;
+      }
+      setSelectedChar(charId);
+      setValidMoves(new Set());
+      try {
+        const res = await fetch(
+          `/api/games/${gameId}/moves?characterId=${encodeURIComponent(charId)}`,
+        );
+        if (res.ok) {
+          const data = await res.json() as { moves: Array<{ to: string }> };
+          setValidMoves(new Set(data.moves.map(m => m.to)));
+        }
+      } catch {
+        // Silently fail — highlights won't show but player can still attempt moves
+      }
+    },
+    [gameId, selectedChar],
+  );
+
+  // ── Execute a move ────────────────────────────────────────────────────────
 
   async function handleMove(regionId: string) {
-    if (!selectedChar || loading) return;
+    if (!selectedChar) return;
     setLoading(true);
+    setError(null);
     try {
       const res = await fetch(`/api/games/${gameId}/move`, {
         method: 'POST',
@@ -121,203 +165,241 @@ export function GameBoard({ gameView, gameId, onAction }: GameBoardProps) {
       });
       const data = await res.json();
       if (!res.ok) {
-        alert(data.error ?? 'Movimiento inválido');
-        return;
+        setError(data.error ?? 'Error al mover');
+      } else {
+        setSelectedChar(null);
+        setValidMoves(new Set());
+        onAction();
       }
-      setSelectedChar(null);
-      onAction();
     } catch {
-      alert('Error de conexión');
+      setError('Error de conexión');
     } finally {
       setLoading(false);
     }
   }
 
-  function getCharsInRegion(regionId: string) {
-    const result: Array<{
-      id: string;
-      isMine: boolean;
-      isRevealed: boolean;
-      name: string;
-    }> = [];
+  // ── Handle node click ──────────────────────────────────────────────────────
 
-    for (const [charId, pos] of Object.entries(gameView.myPositions ?? {})) {
-      if (pos === regionId) {
-        result.push({ id: charId, isMine: true, isRevealed: true, name: charId });
-      }
+  function handleNodeClick(rid: RegionId, myCharsHere: CharDisplay[]) {
+    // If a char is selected and this is a valid destination → move
+    if (selectedChar && validMoves.has(rid)) {
+      void handleMove(rid);
+      return;
     }
-
-    for (const [charId, pos] of Object.entries(gameView.opponentRevealedPositions ?? {})) {
-      if (pos === regionId) {
-        result.push({ id: charId, isMine: false, isRevealed: true, name: charId });
-      }
+    // If it's my turn and I have chars here → select the first
+    if (canAct && myCharsHere.length > 0) {
+      void selectChar(myCharsHere[0].id);
     }
-
-    const hiddenCount = (gameView.opponentHiddenCounts as Record<string, number>)?.[regionId] ?? 0;
-    for (let i = 0; i < hiddenCount; i++) {
-      result.push({ id: `hidden_${regionId}_${i}`, isMine: false, isRevealed: false, name: '?' });
-    }
-
-    return result;
   }
 
-  const myCharCount = Object.values(gameView.myPositions ?? {}).filter(Boolean).length;
-  const opponentRevealedCount = Object.values(gameView.opponentRevealedPositions ?? {}).filter(Boolean).length;
-  const opponentHiddenCount = Object.values(gameView.opponentHiddenCounts ?? {}).reduce(
-    (a: number, b) => a + (b as number),
-    0,
-  );
-  const opponentCount = opponentRevealedCount + opponentHiddenCount;
+  // ── Render ─────────────────────────────────────────────────────────────────
 
-  const isSelectingChar = isMyTurn && !inBattle && !loading;
+  const battleRegion = activeBattle?.region ?? null;
+  const sideColor    = mySide === 'LIGHT' ? 'text-amber-400' : 'text-red-400';
 
   return (
-    <div className="game-board min-h-screen bg-slate-900 text-white flex flex-col">
-      {/* Status bar */}
-      <div className="bg-slate-800 border-b border-slate-700 p-3 flex items-center justify-between text-sm">
-        <div className={`font-medium ${isLight ? 'text-amber-400' : 'text-red-500'}`}>
-          {isLight ? 'Luz' : 'Sombra'} ({myCharCount}/9)
+    <div className="flex flex-col h-screen bg-slate-900 text-white overflow-hidden">
+
+      {/* ── Status bar ──────────────────────────────────────────────────────── */}
+      <div className="shrink-0 px-3 pt-2 pb-1 space-y-0.5">
+        <div className="flex items-center justify-between">
+          <span className={`text-xs font-bold ${sideColor}`}>
+            {mySide === 'LIGHT' ? 'La Luz' : 'La Sombra'}
+          </span>
+          <span
+            className={`text-xs font-semibold ${
+              isMyTurn ? 'text-green-400' : 'text-slate-500'
+            }`}
+          >
+            {activeBattle
+              ? '⚔ Batalla'
+              : isMyTurn
+              ? '▶ Tu turno'
+              : '⏳ Esperando…'}
+          </span>
         </div>
+        {lastAction && (
+          <p className="text-slate-500 text-[10px] truncate">{lastAction}</p>
+        )}
+        {error && (
+          <p className="text-red-400 text-[10px]">{error}</p>
+        )}
+        {selectedChar && (
+          <p className="text-green-400 text-[10px]">
+            Seleccionado: <strong>{CHAR_SHORT[selectedChar] ?? selectedChar}</strong>
+            {validMoves.size > 0
+              ? ` · ${validMoves.size} destinos`
+              : ''}
+            {' · '}
+            <button
+              className="underline"
+              onClick={() => { setSelectedChar(null); setValidMoves(new Set()); }}
+            >
+              cancelar
+            </button>
+          </p>
+        )}
+      </div>
+
+      {/* ── Board ───────────────────────────────────────────────────────────── */}
+      <div className="flex-1 flex items-center justify-center overflow-hidden p-1">
         <div
-          className={`font-bold text-center ${
-            gameView.isMyTurn ? 'text-green-400' : 'text-slate-400'
-          }`}
+          className="relative w-full aspect-square"
+          style={{ maxWidth: '480px', maxHeight: '480px' }}
         >
-          {gameView.isMyTurn ? 'Tu turno' : 'Oponente...'}
-        </div>
-        <div className="text-slate-500">Oponente: {opponentCount}</div>
-      </div>
+          {/* SVG connections layer */}
+          <svg
+            className="absolute inset-0 w-full h-full pointer-events-none"
+            viewBox="0 0 100 100"
+            preserveAspectRatio="none"
+          >
+            <defs>
+              <marker id="arr-blue" markerWidth="4" markerHeight="3" refX="3.5" refY="1.5" orient="auto">
+                <polygon points="0 0, 4 1.5, 0 3" fill="#3b82f6" />
+              </marker>
+              <marker id="arr-purple" markerWidth="4" markerHeight="3" refX="3.5" refY="1.5" orient="auto">
+                <polygon points="0 0, 4 1.5, 0 3" fill="#a855f7" />
+              </marker>
+            </defs>
 
-      {/* Last action */}
-      {gameView.lastAction && (
-        <div className="bg-slate-800/50 text-slate-400 text-xs p-2 text-center border-b border-slate-700/50">
-          {gameView.lastAction}
-        </div>
-      )}
+            {/* Normal bidirectional connections */}
+            {CONNECTION_LINES.map(([from, to]) => {
+              const a = getRegionScreenPos(from, mySide);
+              const b = getRegionScreenPos(to, mySide);
+              return (
+                <line
+                  key={`${from}-${to}`}
+                  x1={a.left} y1={a.top}
+                  x2={b.left} y2={b.top}
+                  stroke="#334155"
+                  strokeWidth="0.5"
+                />
+              );
+            })}
 
-      {/* Battle panel */}
-      {inBattle && gameView.activeBattle && (
-        <BattlePanel
-          battle={gameView.activeBattle as BattleState}
-          myHand={gameView.myHand as CardId[]}
-          mySide={gameView.mySide}
-          gameId={gameId}
-          onBattleAction={onAction}
-        />
-      )}
+            {/* Anduin (Light-only, directional) */}
+            {ANDUIN_CONNECTIONS.map(([from, to]) => {
+              const a = getRegionScreenPos(from, mySide);
+              const b = getRegionScreenPos(to, mySide);
+              return (
+                <line
+                  key={`anduin-${from}-${to}`}
+                  x1={a.left} y1={a.top}
+                  x2={b.left} y2={b.top}
+                  stroke="#3b82f6"
+                  strokeWidth="1"
+                  markerEnd="url(#arr-blue)"
+                />
+              );
+            })}
 
-      {/* Board */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-2">
-        {BOARD_ROWS.map(row => (
-          <div key={row.label} className="space-y-1">
-            <div className="flex gap-2 flex-wrap">
-              {row.regions.map(region => {
-                const chars = getCharsInRegion(region.id);
-                const canMoveTo = isSelectingChar && selectedChar !== null;
-                const hasBattle =
-                  inBattle && gameView.activeBattle?.region === region.id;
+            {/* Tunnel of Moria (Light-only, dashed) */}
+            {(() => {
+              const a = getRegionScreenPos(TUNNEL_OF_MORIA.from, mySide);
+              const b = getRegionScreenPos(TUNNEL_OF_MORIA.to, mySide);
+              return (
+                <line
+                  x1={a.left} y1={a.top}
+                  x2={b.left} y2={b.top}
+                  stroke="#a855f7"
+                  strokeWidth="0.8"
+                  strokeDasharray="2 1"
+                  markerEnd="url(#arr-purple)"
+                />
+              );
+            })()}
+          </svg>
 
-                return (
-                  <div
-                    key={region.id}
-                    onClick={() => canMoveTo ? handleMove(region.id) : undefined}
-                    className={[
-                      'flex-1 min-w-[70px] p-2 rounded border transition-colors',
-                      region.mountain
-                        ? 'bg-slate-600 border-slate-500'
-                        : 'bg-slate-700 border-slate-600',
-                      region.isHome && isLight
-                        ? 'border-amber-700 border-2'
-                        : '',
-                      region.isHome && !isLight
-                        ? 'border-red-900 border-2'
-                        : '',
-                      hasBattle
-                        ? 'border-red-500 border-2 animate-pulse'
-                        : '',
-                      canMoveTo
-                        ? 'cursor-pointer hover:border-green-400 hover:bg-slate-600'
-                        : '',
-                    ]
-                      .filter(Boolean)
-                      .join(' ')}
-                  >
-                    <p className="text-slate-400 text-xs mb-1 truncate">{region.name}</p>
-                    <div className="flex flex-wrap gap-1">
-                      {chars.map(c => (
-                        <button
-                          key={c.id}
-                          onClick={e => {
-                            e.stopPropagation();
-                            if (c.isMine && isSelectingChar) {
-                              setSelectedChar(selectedChar === c.id ? null : c.id);
-                            }
-                          }}
-                          disabled={!c.isMine || !isSelectingChar}
-                          className={[
-                            'text-xs px-1.5 py-0.5 rounded font-mono font-bold',
-                            c.isMine
-                              ? isLight
-                                ? 'bg-amber-600 text-amber-100'
-                                : 'bg-red-800 text-red-100'
-                              : isLight
-                              ? 'bg-red-900 text-red-300'
-                              : 'bg-amber-900 text-amber-300',
-                            c.isMine && selectedChar === c.id
-                              ? 'ring-2 ring-white'
-                              : '',
-                            c.isMine && isSelectingChar
-                              ? 'cursor-pointer hover:opacity-80'
-                              : '',
-                          ]
-                            .filter(Boolean)
-                            .join(' ')}
-                          title={c.name}
-                        >
-                          {c.isMine
-                            ? CHAR_SHORT[c.id] ?? c.id.slice(0, 2).toUpperCase()
-                            : c.isRevealed
-                            ? CHAR_SHORT[c.id] ?? '?'
-                            : '?'}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-      </div>
+          {/* Region nodes */}
+          {(Object.keys(REGIONS) as RegionId[]).map(rid => {
+            const { left, top } = getRegionScreenPos(rid, mySide);
+            const charsHere    = getCharsInRegion(rid);
+            const myCharsHere  = charsHere.filter(c => c.isMine);
+            const isValidMove  = validMoves.has(rid) && !!selectedChar;
+            const hasSel       = myCharsHere.some(c => c.id === selectedChar);
+            const isBattle     = battleRegion === rid;
 
-      {/* Bottom bar — action hints */}
-      {isMyTurn && !inBattle && (
-        <div className="bg-slate-800 border-t border-slate-700 p-3">
-          {selectedChar ? (
-            <div className="flex items-center justify-between">
-              <p className="text-amber-400 text-xs">
-                Moviendo {selectedChar} — hacé click en la región destino
-              </p>
-              <button
-                onClick={() => setSelectedChar(null)}
-                className="text-xs text-slate-500 underline"
+            return (
+              <div
+                key={rid}
+                title={REGIONS[rid].name}
+                className={regionClasses(rid, isValidMove, hasSel, isBattle)}
+                style={{
+                  left: `${left}%`,
+                  top: `${top}%`,
+                  transform: 'translate(-50%, -50%)',
+                }}
+                onClick={() => handleNodeClick(rid, myCharsHere)}
               >
-                Cancelar
-              </button>
-            </div>
-          ) : (
-            <p className="text-slate-400 text-xs text-center">
-              Seleccioná un personaje tuyo para mover
-            </p>
-          )}
+                {/* Region abbreviation */}
+                <span className="leading-none text-slate-400 font-mono">
+                  {REGION_ABBR[rid]}
+                </span>
+
+                {/* Character dots */}
+                {charsHere.length > 0 && (
+                  <div className="flex flex-wrap gap-px justify-center mt-px max-w-full px-px">
+                    {charsHere.slice(0, 4).map(c => (
+                      <span
+                        key={c.id}
+                        onClick={e => {
+                          if (!c.isMine || !canAct) return;
+                          e.stopPropagation();
+                          void selectChar(c.id);
+                        }}
+                        className={[
+                          'inline-flex items-center justify-center rounded-full font-bold leading-none',
+                          'w-[10px] h-[10px] text-[6px]',
+                          c.isHidden
+                            ? 'bg-slate-600 text-slate-400'
+                            : c.isMine
+                            ? mySide === 'LIGHT'
+                              ? 'bg-amber-500 text-slate-900'
+                              : 'bg-red-600 text-white'
+                            : mySide === 'LIGHT'
+                            ? 'bg-red-700 text-white'
+                            : 'bg-amber-600 text-slate-900',
+                          c.isMine && canAct ? 'cursor-pointer' : '',
+                          c.id === selectedChar ? 'ring-1 ring-white scale-110' : '',
+                        ].filter(Boolean).join(' ')}
+                      >
+                        {c.isHidden ? '?' : (CHAR_SHORT[c.id] ?? '?')[0]}
+                      </span>
+                    ))}
+                    {charsHere.length > 4 && (
+                      <span className="text-[6px] text-slate-500 leading-none">
+                        +{charsHere.length - 4}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── Battle panel ────────────────────────────────────────────────────── */}
+      {activeBattle && (
+        <div className="shrink-0 max-h-[40vh] overflow-y-auto">
+          <BattlePanel
+            battle={activeBattle}
+            myHand={myHand}
+            myDiscard={myDiscard}
+            mySide={mySide}
+            gameId={gameId}
+            onBattleAction={onAction}
+          />
         </div>
       )}
 
-      {!isMyTurn && !inBattle && (
-        <div className="bg-slate-800 border-t border-slate-700 p-3">
-          <p className="text-slate-500 text-xs text-center">Esperando al oponente...</p>
-        </div>
-      )}
+      {/* ── Legend ──────────────────────────────────────────────────────────── */}
+      <div className="shrink-0 px-3 pb-1 flex gap-3 text-[9px] text-slate-600 flex-wrap">
+        <span className="text-blue-500">──▶ Anduin</span>
+        <span className="text-purple-500">- -▶ Túnel Moria</span>
+        <span className="text-green-400">⬡ destinos</span>
+        <span className="text-red-400">⬡ batalla</span>
+      </div>
     </div>
   );
 }

@@ -141,7 +141,7 @@ describe('checkAndRefillHands', () => {
     expect(updated.shadowDiscard.length).toBe(0);
   });
 
-  it('does not refill when only one hand is empty', () => {
+  it('refills each hand independently when only one is empty', () => {
     const state = createInitialState();
     const halfEmpty: GameState = {
       ...state,
@@ -149,8 +149,11 @@ describe('checkAndRefillHands', () => {
       lightDiscard: [...state.lightHand],
     };
     const updated = checkAndRefillHands(halfEmpty);
-    // Shadow hand still has cards, so no refill happens
-    expect(updated.lightHand.length).toBe(0);
+    // Light refills independently (their hand was empty, discard had cards)
+    expect(updated.lightHand.length).toBe(9);
+    expect(updated.lightDiscard.length).toBe(0);
+    // Shadow hand is unchanged (had cards, no refill needed)
+    expect(updated.shadowHand.length).toBe(state.shadowHand.length);
   });
 });
 
