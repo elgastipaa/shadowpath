@@ -18,7 +18,7 @@ import { getValidMoves, getAragornMoves, getWitchKingMoves } from './movement';
 export function checkVictory(state: GameState): VictoryResult | null {
   // 1. Frodo reaches Mordor (including home sub-areas)
   const frodoPos = state.lightPositions.frodo;
-  if (frodoPos === 'mordor' || frodoPos === 'barad_dur' || frodoPos === 'mount_doom') {
+  if (frodoPos === 'mordor') {
     return { winner: 'LIGHT', reason: 'Frodo ha llegado a Mordor — ¡La Comunidad gana!' };
   }
 
@@ -29,7 +29,7 @@ export function checkVictory(state: GameState): VictoryResult | null {
 
   // 3. Three or more Shadow characters have invaded The Shire
   const shadowInShire = Object.values(state.shadowPositions)
-    .filter(r => r === 'the_shire' || r === 'bag_end' || r === 'bree')
+    .filter(r => r === 'the_shire')
     .length;
   if (shadowInShire >= 3) {
     return {

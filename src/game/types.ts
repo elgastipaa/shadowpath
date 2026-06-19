@@ -1,11 +1,11 @@
+// Classic edition: 16 regions (1-5-4-3-2-1 from Shire to Mordor)
 export type RegionId =
-  | 'the_shire' | 'bag_end' | 'bree'
+  | 'the_shire'
   | 'arthedain' | 'cardolan' | 'enedwaith' | 'eregion' | 'rhudaur'
   | 'the_high_pass' | 'caradhras' | 'misty_mountains' | 'gap_of_rohan'
-  | 'rivendell' | 'mirkwood' | 'fangorn' | 'rohan' | 'lothloren'
-  | 'isengard' | 'edoras' | 'anduin' | 'dol_guldur' | 'helm_s_deep'
-  | 'gondor' | 'dagorlad' | 'shelob_s_lair'
-  | 'mordor' | 'barad_dur' | 'mount_doom';
+  | 'mirkwood' | 'fangorn' | 'rohan'
+  | 'gondor' | 'dagorlad'
+  | 'mordor';
 
 export type LightCharId =
   | 'frodo' | 'sam' | 'pippin' | 'merry'

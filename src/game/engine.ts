@@ -78,7 +78,7 @@ export const SHADOW_START_REGIONS: Record<ShadowCharId, RegionId> = {
   // Forward scouts
   orcs:         'gondor',
   warg:         'dagorlad',
-  cave_troll:   'shelob_s_lair',
+  cave_troll:   'gondor',
   black_rider:  'dagorlad',
   saruman:      'rohan',
 };
@@ -120,8 +120,8 @@ export function validateSetupPositions(
     const hobbits: LightCharId[] = ['frodo', 'sam', 'pippin', 'merry'];
     for (const h of hobbits) {
       const pos = positions[h];
-      if (pos !== 'the_shire' && pos !== 'bag_end' && pos !== 'bree') {
-        return { valid: false, error: `${h} debe empezar en The Shire o sus sub-áreas` };
+      if (pos !== 'the_shire') {
+        return { valid: false, error: `${h} debe empezar en The Shire` };
       }
     }
     const frontRow = new Set(['arthedain', 'cardolan', 'enedwaith', 'eregion', 'rhudaur']);

@@ -33,24 +33,25 @@ const SHADOW_HOME = 'mordor';
 const LIGHT_HOBBITS = ['frodo', 'sam', 'pippin', 'merry'];
 const LIGHT_WARRIORS = ['gandalf', 'aragorn', 'legolas', 'gimli', 'boromir'];
 const LIGHT_FRONT = ['arthedain', 'cardolan', 'enedwaith', 'eregion', 'rhudaur'];
-const SHADOW_HOME_REGIONS = ['mordor', 'barad_dur', 'mount_doom'];
-const SHADOW_FRONT = ['gondor', 'dagorlad', 'shelob_s_lair', 'fangorn', 'mirkwood', 'rohan'];
+const SHADOW_HOME_REGIONS = ['mordor'];
+const SHADOW_FRONT = ['gondor', 'dagorlad', 'fangorn', 'mirkwood', 'rohan'];
 const REGION_NAMES: Record<string, string> = {
-  the_shire:    'The Shire',
-  mordor:       'Mordor',
-  arthedain:    'Arthedain',
-  cardolan:     'Cardolan',
-  enedwaith:    'Enedwaith',
-  eregion:      'Eregion',
-  rhudaur:      'Rhudaur',
-  gondor:       'Gondor',
-  dagorlad:     'Dagorlad',
-  shelob_s_lair:"Shelob's Lair",
-  fangorn:      'Fangorn',
-  mirkwood:     'Mirkwood',
-  rohan:        'Rohan',
-  barad_dur:    'Barad-dûr',
-  mount_doom:   'Mount Doom',
+  the_shire:       'The Shire',
+  mordor:          'Mordor',
+  arthedain:       'Arthedain',
+  cardolan:        'Cardolan',
+  enedwaith:       'Enedwaith',
+  eregion:         'Eregion',
+  rhudaur:         'Rhudaur',
+  gondor:          'Gondor',
+  dagorlad:        'Dagorlad',
+  fangorn:         'Fangorn',
+  mirkwood:        'Mirkwood',
+  rohan:           'Rohan',
+  the_high_pass:   'The High Pass',
+  caradhras:       'Caradhras',
+  misty_mountains: 'Misty Mountains',
+  gap_of_rohan:    'Gap of Rohan',
 };
 
 interface GameSetupProps {
@@ -77,9 +78,8 @@ export function GameSetup({ gameView, gameId, onSetupDone }: GameSetupProps) {
       if (k === charId) delete newPositions[k];
     }
 
-    // Límite: home acepta 4, frente acepta 1
-    const isHome = regionId === home || regionId === 'bag_end' || regionId === 'bree'
-      || regionId === 'barad_dur' || regionId === 'mount_doom';
+    // Límite: home acepta 4, frente acepta 1 (Shadow front can hold 2 but setup puts 1)
+    const isHome = regionId === home;
     const limit = isHome ? 4 : 1;
     const charsInTarget = Object.values(newPositions).filter(r => r === regionId).length;
 
@@ -114,10 +114,7 @@ export function GameSetup({ gameView, gameId, onSetupDone }: GameSetupProps) {
   // Validation
   let isValid = false;
   if (isLight) {
-    const hobbitsHome = LIGHT_HOBBITS.every(h => {
-      const p = positions[h];
-      return p === 'the_shire' || p === 'bag_end' || p === 'bree';
-    });
+    const hobbitsHome = LIGHT_HOBBITS.every(h => positions[h] === 'the_shire');
     const warriorsFrontOk = LIGHT_WARRIORS.every(w => LIGHT_FRONT.includes(positions[w]));
     const uniqueFront = new Set(LIGHT_WARRIORS.map(w => positions[w])).size === 5;
     isValid = hobbitsHome && warriorsFrontOk && uniqueFront && unassigned.length === 0;
@@ -169,7 +166,7 @@ export function GameSetup({ gameView, gameId, onSetupDone }: GameSetupProps) {
           </h2>
           <p className="text-slate-400 text-sm mt-1">
             {isLight
-              ? 'Asigná los 4 hobbits a The Shire (o sub-áreas) y 1 guerrero a cada región frontal'
+              ? 'Asigná los 4 hobbits a The Shire y 1 guerrero a cada región frontal'
               : 'Asigná todos tus personajes a regiones válidas'}
           </p>
         </div>
